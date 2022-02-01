@@ -297,3 +297,15 @@ Again, if things aren't working in 1-20 minutes, you can view the logs with:
 ```bash
 kubectl logs deployment.apps/aws-load-balancer-controller -n kube-system -f
 ```
+
+# Final Cleanup
+
+If you are done with the cluster, you can destroy it using:
+
+```bash
+eksctl delete cluster --name $YOUR_CLUSTER_NAME
+```
+
+This can take upwards of 20 minutes.
+
+Note, this does not appear to delete the ALB, which you can remove manually in the AWS console under `EC2 > Load Balancers`.
