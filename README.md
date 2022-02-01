@@ -201,7 +201,13 @@ More information on the Ingress configuration options, can be found at: https://
 
 ## Automatic Public DNS Updates
 
-To allow your cluster to update its own DNS, firstly it needs an IAM policy, and the service account associated with the cluster. Your DNS must be hosted in Route 53.
+To allow your cluster to update its own DNS, it needs an IAM policy, and the service account associated with the cluster. Your DNS must be hosted in Route 53.
+
+This runs in it's own namespace, create a Fargate namespace profile:
+
+```bash
+eksctl create fargateprofile --cluster $YOUR_CLUSTER_NAME --region $YOUR_REGION_CODE --name external-dns --namespace external-dns
+```
 
 Create the policy:
 
@@ -223,12 +229,6 @@ eksctl create iamserviceaccount \
     --attach-policy-arn arn:aws:iam::$AWS_ACCOUNT_ID:policy/AllowExternalDNSUpdates \
  --override-existing-serviceaccounts \
  --approve
-```
-
-This runs in it's own namespace, create a Fargate namespace profile:
-
-```bash
-eksctl create fargateprofile --cluster $YOUR_CLUSTER_NAME --region $YOUR_REGION_CODE --name external-dns --namespace external-dns
 ```
 
 Next the `external-dns.yaml` file needs to be updated with the ARN of the role create above. The ARN can be extracted with:
