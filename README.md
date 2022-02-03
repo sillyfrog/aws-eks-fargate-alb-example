@@ -118,7 +118,7 @@ helm install aws-load-balancer-controller eks/aws-load-balancer-controller \
 Once that is done, you can check it's installed and running with:
 
 ```bash
-kubectl get all -A
+kubectl get all -A -o wide
 ```
 
 This shows you the status of the entire cluster. The first section is the pods, these should all be `Running`. On Fargte I found this can often take 2-3 minutes before the pods would start. For example:
@@ -309,3 +309,53 @@ eksctl delete cluster --name $YOUR_CLUSTER_NAME
 This can take upwards of 20 minutes.
 
 Note, this does not appear to delete the ALB, which you can remove manually in the AWS console under `EC2 > Load Balancers`.
+
+# Pod Size and Resource Allocation
+
+As per the [AWS Fargate Docs](https://docs.aws.amazon.com/eks/latest/userguide/fargate-pod-configuration.html), each pod is deployed in their own dedicated node. The size of this node defaults to .25 vCPU and 0.5GB of RAM. To get a node with more resources, the Deployment should including the desired size as part of the `spec` template section.
+
+The available pod/node sizes are listed in the docs as per above. **Remember**: for the `memory` size request, AWS will add 256MB before creating the node, so if you request 1vCPU, and 2GB of RAM, you'll get a pod with 1vCPU, and 3GB of RAM (as that's the closest next size).
+
+To adjust the size of the pod/node in the example `whoami.yaml`, go to the `kind: Deployment` section, and find the the `spec.template.spec.containers.resources` entries. The default is:
+
+```yaml
+cpu: 100m
+memory: 100Mi
+```
+
+**Note**: `100m` means 0.1 vCPU (100 milli vCPU), see the [k8s docs](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/) for more info.
+
+To increase this so we are allocated 2vCPU, and 4GB of RAM, you could change it to:
+
+```yaml
+cpu: "2"
+memory: "3.75Gi"
+```
+
+Note the `3.75Gi` rather than `4Gi` to allow for the automatic overhead AWS applies for the `kubelet` etc. This means your process would not get the full `4Gi` either, rather at least the `3.75Gi`.
+
+## View the Allocated Resources
+
+To view the resources a pod's node has, can be done using the `kubectl describe pod`, firstly get the name of the `pod`:
+
+```bash
+kubectl get pods -o wide -n whoami-demo
+```
+
+```
+NAME                    READY   STATUS    RESTARTS   AGE     IP                NODE                                                    NOMINATED NODE   READINESS GATES
+whoami-f999d5cd-dgqjg   1/1     Running   0          3m42s   192.168.141.120   fargate-ip-192-168-141-120.us-west-1.compute.internal   <none>           <none>
+whoami-f999d5cd-dm8hg   1/1     Running   0          2m39s   192.168.156.60    fargate-ip-192-168-156-60.us-west-1.compute.internal    <none>           <none>
+```
+
+Then, do a describe, and search for `CapacityProvisioned`, eg:
+
+```bash
+kubectl describe pod -n whoami-demo whoami-f999d5cd-dm8hg | grep CapacityProvisioned
+```
+
+```
+Annotations:          CapacityProvisioned: 2vCPU 4GB
+```
+
+Here we can see we have a node with 2vCPU and 4GB as expected.
