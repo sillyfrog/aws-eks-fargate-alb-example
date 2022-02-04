@@ -1,0 +1,28 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  namespace: whoami-demo
+  name: ingress-whoami
+  # annotations:
+  # external-dns.alpha.kubernetes.io/hostname: host-name-to-be-set
+  # alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80},{"HTTPS":443}]'
+
+spec:
+  # Uncomment the following 3 lines to set the host name for HTTPS
+  rules:
+    - http:
+        paths:
+          - path: /whoami
+            pathType: Prefix
+            backend:
+              service:
+                name: whoami
+                port:
+                  number: 80
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: nginx-service
+                port:
+                  number: 80

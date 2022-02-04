@@ -1,8 +1,10 @@
-# Getting Starting with Kubernetes on AWS in Fargate
+# Getting Starting with Kubernetes on AWS in Fargate using Kustomize
+
+This is an updated version of the same deployment process as per the [root of this repo](../), with the exception that each of the changes is now _overlayed_ using **Kustomize**. Kustomize is now built into the `eksctl` command, allowing you to have a _base_ configuration, and _overlay_ changes on top of that. This example also introduces an `nginx` image to allow access to the running pod and view the environment that was published to the pod.
 
 Below are my notes and steps to get started with using Kubernetes (k8s) on AWS in Fargate, including getting the Application Load Balancer (ALB) working, dynamic DNS updates of Ingress routes, an the creation of certificates, and allocating them to the ingress services.
 
-Check out the [kustomize](./kustomize) directory for the same examples, using Kustomize (AKA `kubectl apply -k`)
+Using Kustomize, we layer these changes one on the other until we have our final deployment, without having to change the previous one.
 
 ## Required Resources
 
@@ -163,16 +165,18 @@ eksctl create fargateprofile --cluster $YOUR_CLUSTER_NAME --region $YOUR_REGION_
 
 ### Start the Application!
 
-With the `whoami.yaml` file in the in the current directory run:
+Starting in the `kustomize` directory, run the following command. In addition to the base `whoami` deployment, it will also start an `nginx` deployment.
 
 ```bash
-kubectl apply -f whoami.yaml
+kubectl apply -k overlays/aws
 ```
 
 ```
-namespace/whoami-demo created
-deployment.apps/whoami created
+configmap/example-config-65bt28c9ct created
+service/nginx-service created
 service/whoami created
+deployment.apps/nginx-deployment created
+deployment.apps/whoami created
 ingress.networking.k8s.io/ingress-whoami created
 ```
 
@@ -188,6 +192,8 @@ ingress-whoami   <none>   *       k8s-whoamide-ingressw-0000000314-0000005147.us
 ```
 
 Once that's complete (again, it may take a few minutes), you can browse to the above host name on HTTP, eg: http://k8s-whoamide-ingressw-0000000314-0000005147.us-west-1.elb.amazonaws.com/ .
+
+The base URL will give you a nginx welcome page. You can also visit `/whoami` to see the output from the whoami container.
 
 The whoami app gives plain text output showing the request, and the hops taken to get there.
 
