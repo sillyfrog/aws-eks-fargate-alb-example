@@ -180,6 +180,14 @@ deployment.apps/whoami created
 ingress.networking.k8s.io/ingress-whoami created
 ```
 
+To check the progress of the pods getting created, run:
+
+```bash
+kubectl get pods -o wide -n whoami-demo --watch
+```
+
+That will show the currently active pods, and if the state of one changes, it'll be reflected right away as a new entry. To just view the current state, remove the `--watch` option.
+
 To check the ingress deployment progress, and the assigned hostname, run:
 
 ```bash
@@ -222,7 +230,7 @@ Create the policy:
 ```bash
 aws iam create-policy \
  --policy-name AllowExternalDNSUpdates \
- --policy-document file://AllowExternalDNSUpdates.json
+ --policy-document file://../AllowExternalDNSUpdates.json
 ```
 
 As per above, if the policy exists, it may need to be deleted and re-created. `AllowExternalDNSUpdates.json` is part of this repo.
@@ -239,18 +247,18 @@ eksctl create iamserviceaccount \
  --approve
 ```
 
-Next the `external-dns.yaml` file needs to be updated with the ARN of the role create above. The ARN can be extracted with:
+We can now start filling out our site specific values using a ConfigMap. First we need the ARN of the role create above. The ARN can be extracted with:
 
 ```bash
 eksctl get iamserviceaccount --cluster $YOUR_CLUSTER_NAME --namespace=external-dns --name=external-dns --output=json | jq -r '.[0].status.roleARN'
 ```
 
-Put the value output (startwith with `arn:` and ending with random uppercase characters) where indicated it `external-dns.yaml`
+Put the value output in `overlays/dns-manager/resources.yaml` at the data key `dns-arn` (replacing the existing `"UPDATE DNS ARN HERE"` value).
 
-Then apply the file:
+Then apply all the changes:
 
 ```bash
-kubectl apply -f external-dns.yaml
+kubectl apply -k overlays/dns-manager
 ```
 
 The progress of the pod creation can be seen with:
@@ -266,15 +274,19 @@ external-dns-0000075b4-mzrpv   0/1     ContainerCreating   0          77s   <non
 
 When the state is `Running`, the pod is ready to start updating.
 
+The `dns-manager` and `dns` (below) need to be separated because they are running in different namespaces, and Kustomize (at this stage), does not allow having multiple namespaces in a single configuration.
+
 ### Set DNS Host Name
 
-Next the DNS name to use needs to be set on the ingress configuration. Modify the `whoami.yaml` file and look for the line with `external-dns.alpha.kubernetes.io/hostname: `. Uncomment that line and replace `demo.example.com` with your desired domain name hosted in AWS Route 53, then save the file and apply.
+Next the DNS name to use needs to be set on the ingress configuration. In the `overlays/dns/resources.yaml`, update the `hostname` value with the domain you own hosted on AWS Route 53.
+
+Then apply the `dns` overlay
 
 ```bash
-kubectl apply -f whoami.yaml
+kubectl apply -k overlays/dns
 ```
 
-Once it has finished applying, in 1-20 minutes, the DNS name should have updated, and you can go to it in your browser.
+Once it has finished applying, in 1-20 minutes, the DNS name should have updated, and you can go to it in your browser. Again you can also go to `/whoami` to get some details about the request from the perspective of the pod.
 
 If you have issues, you can view the logs from the external-dns pod by running:
 
@@ -298,13 +310,25 @@ To use HTTPS with the above configuration, firstly a certificate is required fro
 
 After 1-10 minutes the new certificate should be created and ready to use (Status: Issued).
 
-Once it has been validated, modify `whoami.yaml` again, and uncomment the line with `alb.ingress.kubernetes.io/listen-ports:` that includes the `{"HTTPS":443}` section, and comment out the existing `alb.ingress.kubernetes.io/listen-ports:` line. Also uncomment the `tls:` line, and the following 2 lines. Also replace the host with your HTTPS certificate host. The `spec.tls.hosts` section is used by the ALB to select the certificate to use.
+Once it has been validated, because the previous configuration has already been set, the kustomize setup will automatically patch the `whoami.yaml` file with no further configuration required. To apply the HTTPS patch updates, just run:
 
-Again, if things aren't working in 1-20 minutes, you can view the logs with:
+```bash
+kubectl apply -k overlays/dns
+```
+
+If things aren't working in 1-20 minutes, you can view the logs with:
 
 ```bash
 kubectl logs deployment.apps/aws-load-balancer-controller -n kube-system -f
 ```
+
+# Container Environment
+
+This example also introduces a way to get `.env` files into the containers.
+
+Most of the `kustomization.yaml` files have a `configMapGenerator` section, the one in _aws_ is the "base", and then _dns_ and then _https_ build on top of that, to update the environment in the container. The documentation is available [here](https://kubectl.docs.kubernetes.io/references/kustomize/configmapgenerator/).
+
+The actual ConfigMap is then referenced in `nginx.yaml`, using the `configMapRef`.
 
 # Final Cleanup
 
@@ -321,6 +345,8 @@ Note, this does not appear to delete the ALB, which you can remove manually in t
 # Pod Size and Resource Allocation
 
 As per the [AWS Fargate Docs](https://docs.aws.amazon.com/eks/latest/userguide/fargate-pod-configuration.html), each pod is deployed in their own dedicated node. The size of this node defaults to .25 vCPU and 0.5GB of RAM. To get a node with more resources, the Deployment should including the desired size as part of the `spec` template section.
+
+Using Kustomize, you can change this for testing vs development etc.
 
 The available pod/node sizes are listed in the docs as per above. **Remember**: for the `memory` size request, AWS will add 256MB before creating the node, so if you request 1vCPU, and 2GB of RAM, you'll get a pod with 1vCPU, and 3GB of RAM (as that's the closest next size).
 

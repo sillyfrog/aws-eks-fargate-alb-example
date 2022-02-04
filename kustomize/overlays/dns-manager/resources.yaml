@@ -1,0 +1,13 @@
+# I'm not sure using a ConfigMap like this to set values is the "right" way, but this
+# space is constantly moving in Kustomize, and there are no useful guides as to the
+# "right" way to do things.
+# I have found this works well.
+apiVersion: v1
+kind: ConfigMap
+data:
+  # You can seed the ARN with the command:
+  # eksctl get iamserviceaccount --cluster $YOUR_CLUSTER_NAME --namespace=external-dns --name=external-dns --output=json | jq -r '.[0].status.roleARN'
+  dns-arn: arn:aws:iam::685773463584:role/eksctl-trent-kluster-addon-iamserviceaccount-Role1-135TQAM6GRBEO
+metadata:
+  name: kustomize-config-dns
+  namespace: external-dns

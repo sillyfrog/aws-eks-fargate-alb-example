@@ -8,5 +8,4 @@ patchesStrategicMerge:
   - whoami.yaml
 configMapGenerator:
   - name: example-config
-    files:
-      - sample.env
+    env: sample.env

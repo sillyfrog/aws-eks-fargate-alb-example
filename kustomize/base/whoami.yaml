@@ -59,19 +59,9 @@ metadata:
     kubernetes.io/ingress.class: alb
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: ip
-
-    # Uncomment the following line to set your domain
-    # external-dns.alpha.kubernetes.io/hostname: demo.example.com
-
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
-    # Comment out the above line, and uncomment the following line to use HTTPS
-    # alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80},{"HTTPS":443}]'
 
 spec:
-  # Uncomment the following 3 lines to set the host name for HTTPS
-  # tls:
-  #   - hosts:
-  #       - demo.example.com
   rules:
     - http:
         paths:

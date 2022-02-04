@@ -1,0 +1,14 @@
+# I'm not sure using a ConfigMap like this to set values is the "right" way, but this
+# space is constantly moving in Kustomize, and there are no useful guides as to the
+# "right" way to do things.
+# I have found this works well.
+# See docs here for more about "replacements":
+# https://kubectl.docs.kubernetes.io/references/kustomize/kustomization/replacements/
+apiVersion: v1
+kind: ConfigMap
+data:
+  hostname: "trentdemo3.zudello.net"
+  # hostname: "UPDATE YOUR HOST NAME HERE"
+metadata:
+  name: kustomize-config
+  namespace: whoami-demo

@@ -292,7 +292,11 @@ To use HTTPS with the above configuration, firstly a certificate is required fro
 
 After 1-10 minutes the new certificate should be created and ready to use (Status: Issued).
 
-Once it has been validated, modify `whoami.yaml` again, and uncomment the line with `alb.ingress.kubernetes.io/listen-ports:` that includes the `{"HTTPS":443}` section, and comment out the existing `alb.ingress.kubernetes.io/listen-ports:` line. Also uncomment the `tls:` line, and the following 2 lines. Also replace the host with your HTTPS certificate host. The `spec.tls.hosts` section is used by the ALB to select the certificate to use.
+Once it has been validated, modify `whoami.yaml` again, and uncomment the line with `alb.ingress.kubernetes.io/listen-ports:` that includes the `{"HTTPS":443}` section, and comment out the existing `alb.ingress.kubernetes.io/listen-ports:` line. Also uncomment the `tls:` line, and the following 2 lines. Also replace the host with your HTTPS certificate host. The `spec.tls.hosts` section is used by the ALB to select the certificate to use. Then apply the changes:
+
+```bash
+kubectl apply -f whoami.yaml
+```
 
 Again, if things aren't working in 1-20 minutes, you can view the logs with:
 

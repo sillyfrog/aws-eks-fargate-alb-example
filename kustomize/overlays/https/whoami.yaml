@@ -3,22 +3,20 @@ kind: Ingress
 metadata:
   namespace: whoami-demo
   name: ingress-whoami
+  annotations:
+    # alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80},{"HTTPS":443}]'
 
 spec:
+  tls:
+    - hosts:
+        - "WILL BE REPLACED"
   rules:
     - http:
         paths:
-          - path: /whoami
-            pathType: Prefix
-            backend:
-              service:
-                name: whoami
-                port:
-                  number: 80
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: nginx-service
+                name: whoami
                 port:
                   number: 80

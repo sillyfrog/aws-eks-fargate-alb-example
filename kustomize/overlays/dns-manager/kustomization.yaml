@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: external-dns
+resources:
+  - resources.yaml
+  - external-dns.yaml
+replacements:
+  - source:
+      kind: ConfigMap
+      name: kustomize-config-dns
+      fieldPath: data.dns-arn
+    targets:
+      - select:
+          namespace: external-dns
+          name: external-dns
+        fieldPaths:
+          - metadata.annotations.[eks.amazonaws.com/role-arn]
