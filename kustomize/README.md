@@ -1,6 +1,6 @@
 # Getting Starting with Kubernetes on AWS in Fargate using Kustomize
 
-This is an updated version of the same deployment process as per the [root of this repo](../), with the exception that each of the changes is now _overlayed_ using **Kustomize**. Kustomize is now built into the `eksctl` command, allowing you to have a _base_ configuration, and _overlay_ changes on top of that. This example also introduces an `nginx` image to allow access to the running pod and view the environment that was published to the pod.
+This is an updated version of the same deployment process as per the root of this repo, with the exception that each of the changes is now _overlayed_ using **Kustomize**. Kustomize is now built into the `eksctl` command, allowing you to have a _base_ configuration, and _overlay_ changes on top of that. This example also introduces an `nginx` image to allow access to the running pod and view the environment that was published to the pod.
 
 Below are my notes and steps to get started with using Kubernetes (k8s) on AWS in Fargate, including getting the Application Load Balancer (ALB) working, dynamic DNS updates of Ingress routes, an the creation of certificates, and allocating them to the ingress services.
 
