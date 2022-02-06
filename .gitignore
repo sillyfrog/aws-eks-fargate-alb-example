@@ -1,3 +1,5 @@
 .DS_Store
 *-dev.yaml
 terraform
+tmp
+config.yml

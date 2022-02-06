@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+  namespace: whoami-demo
+  labels:
+    app: nginx-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx-app
+  template:
+    metadata:
+      labels:
+        app: nginx-app
+    spec:
+      containers:
+        - name: nginx
+          image: public.ecr.aws/nginx/nginx:1.21
+          envFrom:
+            - configMapRef:
+                name: example-config-{{ print .Values.nginxEnv | sha256sum | trunc 8 }}
+          resources:
+            requests:
+              cpu: 200m
+              memory: 100Mi
+          ports:
+            - name: http
+              containerPort: 80
+          imagePullPolicy: IfNotPresent
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-service
+  namespace: whoami-demo
+  labels:
+    app: nginx-app
+spec:
+  type: LoadBalancer
+  selector:
+    app: nginx-app
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: example-config-{{ print .Values.nginxEnv | sha256sum | trunc 8 }}
+  namespace: whoami-demo
+data:
+  {{- range $key, $val := .Values.nginxEnv }}
+  {{ $key }}: {{ $val | quote }}
+  {{- end }}

@@ -1,0 +1,22 @@
+# Default values for helmdemo.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# Set your account ID and IAM service role name below.
+# You can get the ARN with the command:
+# eksctl get iamserviceaccount --cluster $YOUR_CLUSTER_NAME --namespace=external-dns --name=external-dns --output=json | jq -r '.[0].status.roleARN'
+externalDnsUpdateARN: arn:aws:iam::685773463584:role/eksctl-trent-kluster2-addon-iamserviceaccoun-Role1-IETE1T6K1X5A
+
+# The Route 53 hosted DNS entry we want to update to point to the cluster
+dnsHostname: trentdemo3.zudello.net
+
+tlsHosts: 
+  - trentdemo3.zudello.net
+
+# A set of sample values that are set in the nginx pod
+# look at the nginx.yaml file for how a dynamic hash is created so the pod will reload
+# when there are changes to the configMap
+nginxEnv:
+  DEMO_NAME: "demo-nginx-name"
+  DEMO_ENV: "mine!XXX"
+  DEMO_VALUE_DEFAULT: "true"

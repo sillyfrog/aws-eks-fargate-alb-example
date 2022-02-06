@@ -5,7 +5,7 @@
 apiVersion: v1
 kind: ConfigMap
 data:
-  # You can seed the ARN with the command:
+  # You can get the ARN with the command:
   # eksctl get iamserviceaccount --cluster $YOUR_CLUSTER_NAME --namespace=external-dns --name=external-dns --output=json | jq -r '.[0].status.roleARN'
   dns-arn: arn:aws:iam::685773463584:role/eksctl-trent-kluster-addon-iamserviceaccount-Role1-135TQAM6GRBEO
 metadata:

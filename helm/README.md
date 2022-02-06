@@ -2,9 +2,7 @@
 
 Below are my notes and steps to get started with using Kubernetes (k8s) on AWS in Fargate, including getting the Application Load Balancer (ALB) working, dynamic DNS updates of Ingress routes, an the creation of certificates, and allocating them to the ingress services.
 
-Check out the [helm](./helm) directory for the same examples, using [Helm Charts](https://helm.sh/). This is my currently preferred method for managing Kubernetes clusters.
-
-Check out the [kustomize](./kustomize) directory for the same examples, using Kustomize (AKA `kubectl apply -k`)
+This configuration is using a local [Helm Chart](https://helm.sh/). Best I can tell Helm Charts are typically hosted and not included in the repo, however the template nature (which I personally find easier to understand and work with), and significantly better documentation, are making it my current favorite option for managing a K8s rollout.
 
 ## Required Resources
 
@@ -94,7 +92,7 @@ kubectl get serviceaccount aws-load-balancer-controller --namespace kube-system
 
 ### Install the Load Balancer Controller
 
-Get ready to install the Helm Chart by install the AWS EKS repo:
+Get ready to install the Helm Chart by installing the AWS EKS repo:
 
 ```bash
 helm repo add eks https://aws.github.io/eks-charts
@@ -165,18 +163,23 @@ eksctl create fargateprofile --cluster $YOUR_CLUSTER_NAME --region $YOUR_REGION_
 
 ### Start the Application!
 
-With the `whoami.yaml` file in the in the current directory run:
+If not already, change to the `/helm/` directory, and run the following command. This will use the chart default values:
 
 ```bash
-kubectl apply -f whoami.yaml
+helm upgrade --install demo ./helmchartdemo/
 ```
 
 ```
-namespace/whoami-demo created
-deployment.apps/whoami created
-service/whoami created
-ingress.networking.k8s.io/ingress-whoami created
+Release "demo" does not exist. Installing it now.
+NAME: demo
+LAST DEPLOYED: Sun Feb  6 13:20:46 2022
+NAMESPACE: default
+STATUS: deployed
+REVISION: 1
+TEST SUITE: None
 ```
+
+Note that the command is actually `upgrade`, with an `--install` option. I'm not sure if there are other side effects, but so far running this has always worked, Helm figures out what it needs to do and does it (either install, or upgrade the running configuration).
 
 To check the ingress deployment progress, and the assigned hostname, run:
 
@@ -191,6 +194,8 @@ ingress-whoami   <none>   *       k8s-whoamide-ingressw-0000000314-0000005147.us
 
 Once that's complete (again, it may take a few minutes), you can browse to the above host name on HTTP, eg: http://k8s-whoamide-ingressw-0000000314-0000005147.us-west-1.elb.amazonaws.com/ .
 
+The base URL will give you a nginx welcome page. You can also visit `/whoami` to see the output from the whoami container.
+
 The whoami app gives plain text output showing the request, and the hops taken to get there.
 
 If things aren't working right away, wait a further 15 minutes and try again, things like DNS TTL can also cause issues.
@@ -202,6 +207,18 @@ kubectl logs deployment.apps/aws-load-balancer-controller -n kube-system
 ```
 
 More information on the Ingress configuration options, can be found at: https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.3/guide/ingress/annotations/
+
+## Create a .yaml File for Values
+
+To allow customization of the chart, we need to pass in a `.yaml` file using the `-f` option. Multiple `-f` options are allowed, with the later ones overriding the earlier ones. For this demo we'll just have a single file, that will override the values in the `values.yaml` file that forms part of the chart.
+
+As a starting point, copy the `helmchartdemo/values.yaml` file to the current directory:
+
+```bash
+cp helmchartdemo/values.yaml config.yaml
+```
+
+Moving forward, we'll update the new `config.yaml` file with our cluster specific values.
 
 ## Automatic Public DNS Updates
 
@@ -218,10 +235,10 @@ Create the policy:
 ```bash
 aws iam create-policy \
  --policy-name AllowExternalDNSUpdates \
- --policy-document file://AllowExternalDNSUpdates.json
+ --policy-document file://../AllowExternalDNSUpdates.json
 ```
 
-As per above, if the policy exists, it may need to be deleted and re-created. `AllowExternalDNSUpdates.json` is part of this repo.
+As per above, if the policy exists, it may need to be deleted and re-created if it does not have the correct permissions. `AllowExternalDNSUpdates.json` is part of this repo.
 
 Next associate the policy with a service account:
 
@@ -235,18 +252,30 @@ eksctl create iamserviceaccount \
  --approve
 ```
 
-Next the `external-dns.yaml` file needs to be updated with the ARN of the role create above. The ARN can be extracted with:
+Next your `config.yaml` file needs to be updated with the ARN of the role create above. The ARN can be extracted with:
 
 ```bash
 eksctl get iamserviceaccount --cluster $YOUR_CLUSTER_NAME --namespace=external-dns --name=external-dns --output=json | jq -r '.[0].status.roleARN'
 ```
 
-Put the value output (startwith with `arn:` and ending with random uppercase characters) where indicated it `external-dns.yaml`
+Put the value output as a string under `externalDnsUpdateARN:` in your `config.yaml`.
 
-Then apply the file:
+Before the chart can be applied, the namespace has to be deleted because it was created by the `eksctl` command. Helm doesn't like this because it's not under it's control from the outset. The error looks like this:
+
+```
+Error: UPGRADE FAILED: rendered manifests contain a resource that already exists. Unable to continue with update: Namespace "external-dns" in namespace "" exists and cannot be imported into the current release: invalid ownership metadata; label validation error: missing key "app.kubernetes.io/managed-by": must be set to "Helm"; annotation validation error: missing key "meta.helm.sh/release-name": must be set to "demo"; annotation validation error: missing key "meta.helm.sh/release-namespace": must be set to "default"
+```
+
+The simplest solution I have found is just to delete it, and then do the upgrade. To delete it:
 
 ```bash
-kubectl apply -f external-dns.yaml
+kubectl delete namespaces external-dns
+```
+
+Then apply the chart. You'll note that now the `externalDnsUpdateARN` value is now set, the new namespace will be created, and the external DNS provider pod will be created.
+
+```bash
+helm upgrade --install -f config.yaml demo ./helmchartdemo/
 ```
 
 The progress of the pod creation can be seen with:
@@ -260,14 +289,14 @@ NAME                           READY   STATUS              RESTARTS   AGE   IP  
 external-dns-0000075b4-mzrpv   0/1     ContainerCreating   0          77s   <none>   fargate-ip-192-168-168-95.us-west-1.compute.internal   <none>           <none>
 ```
 
-When the state is `Running`, the pod is ready to start updating.
+When the state is `Running`, the pod is ready to start updating DNS entries.
 
 ### Set DNS Host Name
 
-Next the DNS name to use needs to be set on the ingress configuration. Modify the `whoami.yaml` file and look for the line with `external-dns.alpha.kubernetes.io/hostname: `. Uncomment that line and replace `demo.example.com` with your desired domain name hosted in AWS Route 53, then save the file and apply.
+Next the DNS name to use needs to be set on the ingress configuration. Modify your `config.yaml` and set the `dnsHostname:` value to your desired domain name hosted in AWS Route 53, then save the file and apply.
 
 ```bash
-kubectl apply -f whoami.yaml
+helm upgrade --install -f config.yaml demo ./helmchartdemo/
 ```
 
 Once it has finished applying, in 1-20 minutes, the DNS name should have updated, and you can go to it in your browser.
@@ -294,21 +323,49 @@ To use HTTPS with the above configuration, firstly a certificate is required fro
 
 After 1-10 minutes the new certificate should be created and ready to use (Status: Issued).
 
-Once it has been validated, modify `whoami.yaml` again, and uncomment the line with `alb.ingress.kubernetes.io/listen-ports:` that includes the `{"HTTPS":443}` section, and comment out the existing `alb.ingress.kubernetes.io/listen-ports:` line. Also uncomment the `tls:` line, and the following 2 lines. Also replace the host with your HTTPS certificate host. The `spec.tls.hosts` section is used by the ALB to select the certificate to use. Then apply the changes:
+Once it has been validated, modify `config.yaml` again, and set the domain to an entry under the `tlsHosts:` list. This is configured as a YAML list to show how different data types can be set in a customized configuration. For this demo, just uncomment the line with `demo.example.com`, and replace it with your domain (which will probably be the same as `dnsHostName` above). (YAML / Helm provide ways to reference other values already set in the file, see here for more information: https://helm.sh/docs/chart_template_guide/yaml_techniques/#yaml-anchors .)
 
 ```bash
-kubectl apply -f whoami.yaml
+helm upgrade --install -f config.yaml demo ./helmchartdemo/
 ```
 
-Again, if things aren't working in 1-20 minutes, you can view the logs with:
+You should now be able to go to the HTTPS version of your site at the domain configured above. Again, if things aren't working in 1-20 minutes, you can view the logs with:
 
 ```bash
 kubectl logs deployment.apps/aws-load-balancer-controller -n kube-system -f
 ```
 
+# Container Environment
+
+This example also introduces a way to set environment variables in the container.
+
+The values need to be set in the YAML file (because the chart can't access files outside it's own directories, and files passed in need to be YAML, and because Kubernetes is involved, there has to be something that everyone wants that's in no way simple).
+
+At the end of the `config.yaml`, there is a `nginxEnv` section that came across from the default `values.yaml`. These key/value pairs from part of the _nginx_ environment. To access the container, and see the live config, run:
+
+```bash
+kubectl exec -n whoami-demo -it deployment.apps/nginx-deployment -- /bin/bash
+```
+
+Then when in the container, you can view the `DEMO_` env by running:
+
+```bash
+ env | grep DEMO_
+```
+
+You can then make changes to the `config.yaml` file in the `nginxEnv` section, and run an upgrade again so the changes take effect. After a few minutes (allow for the nginx k8s upgrade to complete), you can do the same thing again and view the new environment.
+
+To see how this is configured, look in the `nginx.yaml` file - there is a trick here where the _configMap_ needs to be renamed (among other options) so the containers actually restart. Otherwise the _configMap_ will get updated, but the containers won't know about it. By using the `sha256sum`, it will create a unique name if there are ever any changes. Helm will then clean up the old configMap as it's no longer in use, and having a reference to the new name means k8s will restart the containers using the specified update strategy.
+
 # Final Cleanup
 
-If you are done with the cluster, you can destroy it using:
+If you are done with the deployments that were just installed using Helm, you can do an `uninstall` as follows:
+
+```bash
+helm uninstall demo
+```
+
+If you are done with the cluster, you can destroy it completely with `eksctl`:
 
 ```bash
 eksctl delete cluster --name $YOUR_CLUSTER_NAME

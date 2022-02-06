@@ -1,3 +1,4 @@
+{{- if .Values.externalDnsUpdateARN -}}
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -9,10 +10,7 @@ metadata:
   name: external-dns
   namespace: external-dns
   annotations:
-    # Substitute your account ID and IAM service role name below.
-    # You can get the ARN with the command:
-    # eksctl get iamserviceaccount --cluster $YOUR_CLUSTER_NAME --namespace=external-dns --name=external-dns --output=json | jq -r '.[0].status.roleARN'
-    eks.amazonaws.com/role-arn: <insert ARN>
+    eks.amazonaws.com/role-arn: {{ .Values.externalDnsUpdateARN }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -85,3 +83,5 @@ spec:
             - --aws-zone-type=public # only look at public hosted zones (valid values are public, private or no value for both)
             - --registry=txt
             - --txt-owner-id=my-identifier
+
+{{- end -}}
