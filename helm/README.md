@@ -417,7 +417,7 @@ There has to be a better way...
 
 I found this page the most useful: https://aws.amazon.com/premiumsupport/knowledge-center/eks-api-server-unauthorized-error/
 
-To allow using to gain access to the cluster, the need to be allowed, if not, they'll get an error such as:
+To allow using to gain access to the cluster, they need to be explicitly allowed, if not, they'll get an error such as:
 
 ```
 error: You must be logged in to the server (Unauthorized)
