@@ -3,3 +3,4 @@
 terraform
 tmp
 config.yml
+helm/config.yaml

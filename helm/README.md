@@ -357,6 +357,92 @@ You can then make changes to the `config.yaml` file in the `nginxEnv` section, a
 
 To see how this is configured, look in the `nginx.yaml` file - there is a trick here where the _configMap_ needs to be renamed (among other options) so the containers actually restart. Otherwise the _configMap_ will get updated, but the containers won't know about it. By using the `sha256sum`, it will create a unique name if there are ever any changes. Helm will then clean up the old configMap as it's no longer in use, and having a reference to the new name means k8s will restart the containers using the specified update strategy.
 
+# Logging
+
+To log from an EKS cluster, logging must be enabled. By default the logs will go to [AWS CloudWatch](https://aws.amazon.com/cloudwatch/).
+
+To enable logging, modify `config.yaml`, and enter your AWS Region in the `awsLoggingRegion` section (eg: `us-west-1`). Then apply:
+
+```bash
+helm upgrade --install -f config.yaml demo ./helmchartdemo/
+```
+
+For this to work, it must also be given permission to log to CloudWatch. Firstly create the policy in your AWS account, as per before, if it's already created and needs to be updated, you may need to delete to re-create:
+
+```bash
+curl -o cloudwatch-permissions.json \
+     https://raw.githubusercontent.com/aws-samples/amazon-eks-fluent-logging-examples/mainline/examples/fargate/cloudwatchlogs/permissions.json
+aws iam create-policy \
+        --policy-name FluentBitEKSFargate \
+        --policy-document file://cloudwatch-permissions.json
+```
+
+Then apply the policy to the role profile:
+
+```bash
+export FARGATE_POD_EXECUTION_ROLE=$(eksctl get fargateprofile --cluster $YOUR_CLUSTER_NAME --region $YOUR_REGION_CODE --output json | jq -r '.[] | select(.name == "fp-default") | .podExecutionRoleARN' | cut -d "/" -f2)
+aws iam attach-role-policy \
+ --policy-arn arn:aws:iam::$AWS_ACCOUNT_ID:policy/FluentBitEKSFargate \
+ --role-name $FARGATE_POD_EXECUTION_ROLE
+```
+
+After visiting a page hosted by nginx, you should start to see the logs show up in the CloudWatch Console with the group name `fluent-bit-cloudwatch`.
+
+# Giving Additional Users Access
+
+## Configuring `kubectl` Context
+
+So `kubectl` works with the cluster, each user will need to add the cluster to their context with the following command (assuming they already have the `aws` CLI configure):
+
+```bash
+aws eks update-kubeconfig --region $YOUR_REGION_CODE --name $YOUR_CLUSTER_NAME
+```
+
+Then assuming they have permissions (see below), it should be possible to run:
+
+```bash
+kubectl get svc
+```
+
+And get something like:
+
+```
+NAME         TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)   AGE
+kubernetes   ClusterIP   10.100.0.1   <none>        443/TCP   23h
+```
+
+## Give Users Permissions
+
+There has to be a better way...
+
+I found this page the most useful: https://aws.amazon.com/premiumsupport/knowledge-center/eks-api-server-unauthorized-error/
+
+To allow using to gain access to the cluster, the need to be allowed, if not, they'll get an error such as:
+
+```
+error: You must be logged in to the server (Unauthorized)
+```
+
+The solution is for the cluster creator to run:
+
+```bash
+kubectl edit configmap aws-auth -n kube-system
+```
+
+Then modify the YAML to include the sections as per below in the `data:` section, as a new entry after `mapRoles`, update the `sampleuserX` values with your real user ARNs and usernames:
+
+```yaml
+mapUsers: |
+  - userarn: arn:aws:iam::111111111111:user/sampleuser1
+    username: sampleuser1
+    groups:
+      - system:masters
+  - userarn: arn:aws:iam::111111111111:user/sampleuser2
+    username: sampleuser2
+    groups:
+      - system:masters
+```
+
 # Final Cleanup
 
 If you are done with the deployments that were just installed using Helm, you can do an `uninstall` as follows:

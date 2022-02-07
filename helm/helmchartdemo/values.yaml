@@ -20,3 +20,7 @@ nginxEnv:
   DEMO_NAME: "demo-nginx-name"
   DEMO_ENV: "dev"
   DEMO_VALUE_DEFAULT: "true"
+
+
+# AWS Logging Region, if set to your cluster region, will send logs to CloudWatch logging
+awsLoggingRegion: 
