@@ -443,6 +443,108 @@ mapUsers: |
       - system:masters
 ```
 
+# Secrets
+
+If you want to provide secret information to your pods, you can store it in secrets. These should be managed outside the repo/helm chart so they are not committed with the rest of your code.
+
+## Creating Secrets
+
+To create simple secrets, you can do the following:
+
+```bash
+kubectl create secret generic --namespace whoami-demo aws --from-literal=AWS_ACCESS_KEY_ID=123456789 --from-literal=AWS_SECRET_ACCESS_KEY_ID=super-secret-thing
+```
+
+There are a number of different types of [secrets](https://kubernetes.io/docs/concepts/configuration/secret/), the other one is TLS. To create a TLS secret firstly you'll need some certificates, so generate some:
+
+```bash
+mkdir /tmp/certs
+cd /tmp/certs
+openssl req -x509 -newkey rsa:4096 -sha256 -days 36500 -nodes -keyout example.key -out example.crt -extensions san -config <(echo "[req]";
+    echo distinguished_name=req;
+    echo "[san]";
+    ) -subj "/CN=example.com"
+```
+
+Then we can upload these secrets:
+
+```bash
+kubectl create secret tls demo-tls --namespace whoami-demo --cert=/tmp/certs/example.crt --key=/tmp/certs/example.key
+```
+
+Finally, to use these secrets, add an entry to the `config.yaml` as follows:
+
+```yaml
+setSecrets: true
+```
+
+And then apply:
+
+```bash
+helm upgrade --install -f config.yaml demo ./helmchartdemo/
+```
+
+It'll take a few minuets to apply, watch the progress with:
+
+```bash
+kubectl get pods -A --watch
+```
+
+When the new container is in the `Running` state again, you can then see the secrets in place:
+
+```
+kubectl exec -n whoami-demo -it deployment.apps/nginx-deployment -- /bin/bash
+root@nginx-deployment-7c595db465-qtj79:/# env | grep AWS_
+AWS_SECRET_ACCESS_KEY_ID=super-secret-thing
+AWS_ACCESS_KEY_ID=123456789
+root@nginx-deployment-7c595db465-qtj79:/# ls -lh /run/secrets/demo/
+total 0
+lrwxrwxrwx 1 root root 14 Feb  7 22:36 tls.crt -> ..data/tls.crt
+lrwxrwxrwx 1 root root 14 Feb  7 22:36 tls.key -> ..data/tls.key
+```
+
+## Modifying Secrets
+
+To modify an existing secret, for simple ones, I found the simplest way is to delete then re-create:
+
+```bash
+kubectl delete secrets --namespace zworkflows aws
+kubectl create secret generic --namespace whoami-demo aws --from-literal=aws_access_key_id=123456789 --from-literal=aws_secret_access_key_id=NEW-super-secret-thing
+```
+
+Alternatively, you can edit the the secret in place with:
+
+```bash
+kubectl edit secret --namespace whoami-demo aws
+```
+
+**Note**: If you doing this, the values are _base64_ encoded. So you must get your new values, base64 encode, and then paste them in to the edit window. For example: `echo "some value" | base64`
+
+The pods will then need to be restarted to get the new values, there are a number of ways to do this. Personally I change an unused `env` to a new value using the helm configmap style deployment as per the nginx deployment in this repo.
+
+# Changing Clusters / "Contexts"
+
+If you are working on several clusters at once, you can change which one `kubectl` is using.
+
+To see what contexts are available:
+
+```bash
+kubectl config get-contexts
+```
+
+```
+CURRENT   NAME                                   CLUSTER                           AUTHINFO                                    NAMESPACE
+          docker-desktop                         docker-desktop                    docker-desktop
+          user@dev.ap-southeast-2.eksctl.io      dev.ap-southeast-2.eksctl.io      user@dev.ap-southeast-2.eksctl.io
+*         user@testing-helm.us-west-1.eksctl.io  testing-helm.us-west-1.eksctl.io  user@testing-helm.us-west-1.eksctl.io
+```
+
+The **\*** indicates the currently active context. To change, for example run:
+
+```bash
+kubectl config use-context user@dev.ap-southeast-2.eksctl.io
+```
+
 # Final Cleanup
 
 If you are done with the deployments that were just installed using Helm, you can do an `uninstall` as follows:

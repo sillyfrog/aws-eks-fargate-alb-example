@@ -21,6 +21,16 @@ spec:
           envFrom:
             - configMapRef:
                 name: example-config-{{ print .Values.nginxEnv | sha256sum | trunc 8 }}
+{{- if .Values.setSecrets }}
+            - secretRef:
+                name: aws
+{{- end }}
+{{- if .Values.setSecrets }}
+          volumeMounts:
+            - name: demo-tls
+              mountPath: "/run/secrets/demo"
+              readOnly: true
+{{- end }}
           resources:
             requests:
               cpu: 200m
@@ -29,6 +39,12 @@ spec:
             - name: http
               containerPort: 80
           imagePullPolicy: IfNotPresent
+{{- if .Values.setSecrets }}
+      volumes:
+         - name: demo-tls
+           secret:
+            secretName: demo-tls
+{{- end }}
 
 ---
 apiVersion: v1
