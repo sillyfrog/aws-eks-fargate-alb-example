@@ -520,6 +520,8 @@ kubectl edit secret --namespace whoami-demo aws
 
 **Note**: If you doing this, the values are _base64_ encoded. So you must get your new values, base64 encode, and then paste them in to the edit window. For example: `echo "some value" | base64`
 
+For TLS secrets, again deleted and re-creating is the easiest way I have found.
+
 The pods will then need to be restarted to get the new values, there are a number of ways to do this. Personally I change an unused `env` to a new value using the helm configmap style deployment as per the nginx deployment in this repo.
 
 # Changing Clusters / "Contexts"
@@ -544,6 +546,93 @@ The **\*** indicates the currently active context. To change, for example run:
 ```bash
 kubectl config use-context user@dev.ap-southeast-2.eksctl.io
 ```
+
+# Further Debugging
+
+If a pod is not starting for some reason, the full logs can be viewed with `describe` for example, a pod is stuck in the _ContainerCreating_ state:
+
+```
+# kubectl get pods -A                                                                                                                                                                                          (helm-chart)zworkflows
+NAMESPACE      NAME                                            READY   STATUS              RESTARTS   AGE
+external-dns   external-dns-ff5ff75b4-9sjjh                    1/1     Running             0          40h
+kube-system    aws-load-balancer-controller-676b8764cd-cfqh5   1/1     Running             0          41h
+kube-system    aws-load-balancer-controller-676b8764cd-plxs4   1/1     Running             0          41h
+kube-system    coredns-65c6c5fc9b-m8lxc                        1/1     Running             0          41h
+kube-system    coredns-65c6c5fc9b-wq7jf                        1/1     Running             0          41h
+whoami-demo    nginx-deployment-75f9b99c46-w48gj               0/1     ContainerCreating   0          2m52s
+whoami-demo    nginx-deployment-7c595db465-qtj79               1/1     Running             0          57m
+whoami-demo    whoami-84c64bb8d8-dst56                         1/1     Running             0          40h
+whoami-demo    whoami-84c64bb8d8-krlkw                         1/1     Running             0          40h
+
+# kubectl describe pod -n whoami-demo nginx-deployment-75f9b99c46-w48gj                                                                                                                                         (helm-chart)zworkflows
+Name:                 nginx-deployment-75f9b99c46-w48gj
+Namespace:            whoami-demo
+Priority:             2000001000
+Priority Class Name:  system-node-critical
+Node:                 fargate-ip-192-168-148-89.us-west-1.compute.internal/192.168.148.89
+Start Time:           Tue, 08 Feb 2022 09:31:22 +1000
+Labels:               app=nginx-app
+                      eks.amazonaws.com/fargate-profile=whoami-demo
+                      pod-template-hash=75f9b99c46
+Annotations:          CapacityProvisioned: 0.25vCPU 0.5GB
+                      Logging: LoggingEnabled
+                      kubernetes.io/psp: eks.privileged
+Status:               Pending
+IP:
+IPs:                  <none>
+Controlled By:        ReplicaSet/nginx-deployment-75f9b99c46
+Containers:
+  nginx:
+    Container ID:
+    Image:          public.ecr.aws/nginx/nginx:1.21
+    Image ID:
+    Port:           80/TCP
+    Host Port:      0/TCP
+    State:          Waiting
+      Reason:       ContainerCreating
+    Ready:          False
+    Restart Count:  0
+    Requests:
+      cpu:     200m
+      memory:  100Mi
+    Environment Variables from:
+      example-config-012e52da  ConfigMap  Optional: false
+      aws                      Secret     Optional: false
+    Environment:               <none>
+    Mounts:
+      /run/secrets/demo from demo-tls (ro)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-fcwl4 (ro)
+Conditions:
+  Type              Status
+  Initialized       True
+  Ready             False
+  ContainersReady   False
+  PodScheduled      True
+Volumes:
+  demo-tls:
+    Type:        Secret (a volume populated by a Secret)
+    SecretName:  demo-tls
+    Optional:    false
+  kube-api-access-fcwl4:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    ConfigMapOptional:       <nil>
+    DownwardAPI:             true
+QoS Class:                   Burstable
+Node-Selectors:              <none>
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type     Reason          Age                  From               Message
+  ----     ------          ----                 ----               -------
+  Normal   LoggingEnabled  4m4s                 fargate-scheduler  Successfully enabled logging for pod
+  Normal   Scheduled       3m19s                fargate-scheduler  Successfully assigned whoami-demo/nginx-deployment-75f9b99c46-w48gj to fargate-ip-192-168-148-89.us-west-1.compute.internal
+  Warning  FailedMount     76s                  kubelet            Unable to attach or mount volumes: unmounted volumes=[demo-tls], unattached volumes=[demo-tls kube-api-access-fcwl4]: timed out waiting for the condition
+  Warning  FailedMount     71s (x9 over 3m19s)  kubelet            MountVolume.SetUp failed for volume "demo-tls" : secret "demo-tls" not found
+```
+
+At the end, the Warning `FailedMount` shows that the expected secret is not there, if we add the secret (as per secrets above), the pod should then start automatically (if not, view describe again to see the next error).
 
 # Final Cleanup
 
