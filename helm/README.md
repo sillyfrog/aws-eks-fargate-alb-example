@@ -648,6 +648,24 @@ The **\*** indicates the currently active context. To change, for example run:
 kubectl config use-context user@dev.ap-southeast-2.eksctl.io
 ```
 
+# Accessing Services in the Cluster
+
+A running deployment/pod in the cluster can access other services in the cluster, even if they are in a different name space.
+
+To access a service that is in the _same_ name space, the name of the service can be used, for example:
+
+```bash
+curl nginx-service
+```
+
+To access a server that's in a _different_ namespace, an explicit internal DNS entry is created, for example:
+
+```bash
+curl nginx-service.whoami-demo.svc.cluster.local
+```
+
+This is built up of `<service name>.<namespace>.svc.cluster.local`.
+
 # Further Debugging
 
 If a pod is not starting for some reason, the full logs can be viewed with `describe` for example, a pod is stuck in the _ContainerCreating_ state:
