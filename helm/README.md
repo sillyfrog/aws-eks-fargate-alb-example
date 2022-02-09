@@ -524,6 +524,107 @@ For TLS secrets, again deleted and re-creating is the easiest way I have found.
 
 The pods will then need to be restarted to get the new values, there are a number of ways to do this. Personally I change an unused `env` to a new value using the helm configmap style deployment as per the nginx deployment in this repo.
 
+# Persistent Storage
+
+Pods deployed on Fargate all use ephemeral storage (ie: it's deleted when the pod stops), so for services that need persistent storage, you need to create an EC2 instance and add it to the cluster.
+
+The steps below create a single EC2 instance, add it to the cluster, give it a `taint` so no pods will be scheduled there, create storage for our container, and then mount it and use it in a pod.
+
+The Helm Chart will deploy a MariaDB pod into the cluster.
+
+## Add an EC2 instance to your k8s Cluster and Taint it
+
+Adding an EC2 instance is as per below, note you can select the `node-type`, size of storage, min/max node count etc. The command below is a relatively low spec instance. See the `eksctl create nodegroup --help` for more information on the options.
+
+```bash
+eksctl create nodegroup --cluster $YOUR_CLUSTER_NAME --region $YOUR_REGION_CODE --name ec2-persist --node-type t2.medium --node-volume-size 40 --nodes-min 1 --nodes-max 1
+```
+
+**Take note of the node**. This will be in the output of the above command, for example:
+
+```
+2022-02-09 13:05:17 [ℹ]  node "ip-192-168-41-129.us-west-1.compute.internal" is ready
+```
+
+If the node name was not recorded, it can also be extracted with:
+
+```bash
+kubectl get nodes --selector 'alpha.eksctl.io/nodegroup-name=ec2-persist' -o json | jq -r '.items[0].metadata.name'
+```
+
+To taint the server, run the following command, this will set the `NoSchedule` taint which will prevent anything getting scheduled on it, unless explicitly configure to do so:
+
+```bash
+kubectl taint node --selector 'alpha.eksctl.io/nodegroup-name=ec2-persist' aws=ec2:NoSchedule
+```
+
+## Create Storage
+
+The EBS storage volume needs to be created _before_ the pod is started. Below generates a 10GB volume. See `aws ec2 create-volume help` for more information on all the options and their meaning available for the command.
+
+The AZ of the EC2 instance that was created above needs to be entered, this is set in the `EC2_AZ` environment variable. The volume is created with a tag of `name=demo-mariadb` it can be located later.
+
+```bash
+export EC2_AZ=$(kubectl get nodes --selector 'alpha.eksctl.io/nodegroup-name=ec2-persist' -o json | jq -r '.items[0].metadata.labels["topology.kubernetes.io/zone"]')
+aws ec2 create-volume --availability-zone=$EC2_AZ --size=10 --volume-type=gp2 --tag-specifications 'ResourceType=volume,Tags=[{Key=name,Value=demo-mariadb}]'
+```
+
+## Create Pod with Mounted Storage
+
+Finally, get the Volume ID of the storage volume just created. This can be done with:
+
+```bash
+aws ec2 describe-volumes --filters --filters Name=tag:name,Values=demo-mariadb | jq -r '.Volumes[0].VolumeId'
+```
+
+Put that value on a new line in `config.yaml` with the key `mariadbVolumeId`, for example:
+
+```
+mariadbVolumeId: vol-01234567892048a9e
+```
+
+Deploy those changes:
+
+```bash
+helm upgrade --install -f config.yaml demo ./helmchartdemo/
+```
+
+## Testing
+
+To test the storage remains even when the pod is deleted, see the following commands and output
+
+```
+bash-3.2$ kubectl exec -n mariadb -it mariadb -- /bin/bash
+
+root@mariadb:/# mysql --user=root --password=password --database=database
+MariaDB [database]> CREATE TABLE test(f int);
+Query OK, 0 rows affected (0.013 sec)
+
+MariaDB [database]> CREATE TABLE test(f int);
+ERROR 1050 (42S01): Table 'test' already exists
+MariaDB [database]> Bye
+root@mariadb:/# exit
+
+bash-3.2$ kubectl delete pod mariadb -n mariadb
+pod "mariadb" deleted
+
+bash-3.2$ helm upgrade --install -f config.yaml demo ./helmchartdemo/
+Release "demo" has been upgraded. Happy Helming!
+NAME: demo
+LAST DEPLOYED: Wed Feb  9 15:54:40 2022
+NAMESPACE: default
+STATUS: deployed
+REVISION: 25
+TEST SUITE: None
+
+bash-3.2$ kubectl exec -n mariadb -it mariadb -- /bin/bash
+root@mariadb:/# mysql --user=root --password=password --database=database
+MariaDB [database]> CREATE TABLE test(f int);
+ERROR 1050 (42S01): Table 'test' already exists
+MariaDB [database]>
+
+```
+
 # Changing Clusters / "Contexts"
 
 If you are working on several clusters at once, you can change which one `kubectl` is using.
