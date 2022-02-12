@@ -668,6 +668,8 @@ This is built up of `<service name>.<namespace>.svc.cluster.local`.
 
 # Further Debugging
 
+## Pod not Starting
+
 If a pod is not starting for some reason, the full logs can be viewed with `describe` for example, a pod is stuck in the _ContainerCreating_ state:
 
 ```
@@ -752,6 +754,38 @@ Events:
 ```
 
 At the end, the Warning `FailedMount` shows that the expected secret is not there, if we add the secret (as per secrets above), the pod should then start automatically (if not, view describe again to see the next error).
+
+## Error about "Namespace Exists"
+
+An error such as the following may mean the `kubectl` context is set to a specific namespace:
+
+```
+Error: rendered manifests contain a resource that already exists. Unable to continue with install: Namespace "external-dns" in namespace "" exists and cannot be imported into the current release: invalid ownership metadata; annotation validation error: key "meta.helm.sh/release-namespace" must equal "random-namespace": current value is "default"
+helm.go:84: [debug] Namespace "external-dns" in namespace "" exists and cannot be imported into the current release: invalid ownership metadata; annotation validation error: key "meta.helm.sh/release-namespace" must equal "random-namespace": current value is "default"
+rendered manifests contain a resource that already exists. Unable to continue with install
+```
+
+To confirm, see if there is a namespace set in the context by running:
+
+```bash
+kubectl config get-contexts
+```
+
+```
+CURRENT   NAME                                    CLUSTER                            AUTHINFO                               NAMESPACE
+          docker-desktop                          docker-desktop                     docker-desktop
+*         user@testing-helm.us-west-1.eksctl.io   testing-helm.us-west-1.eksctl.io   user@testing-helm.us-west-1.eksctl.io  random-namespace
+```
+
+Note that in the above output, the current (the line starting with the `*`) context has a namespace assigned.
+
+To remove this, run the follwing:
+
+```bash
+kubectl config set-context --current --namespace=""
+```
+
+The Helm deployment should then work as expected.
 
 # Final Cleanup
 

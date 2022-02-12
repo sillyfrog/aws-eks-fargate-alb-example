@@ -1,8 +1,12 @@
 # Getting Starting with Kubernetes on AWS in Fargate
 
-Below are my notes and steps to get started with using Kubernetes (k8s) on AWS in Fargate, including getting the Application Load Balancer (ALB) working, dynamic DNS updates of Ingress routes, an the creation of certificates, and allocating them to the ingress services.
+# Helm Charts Are My Preferred Method
 
-Check out the [helm](./helm) directory for the same examples, using [Helm Charts](https://helm.sh/). This is my currently preferred method for managing Kubernetes clusters.
+See the [helm](./helm) directory for the same examples using [Helm Charts](https://helm.sh/). This is my preferred method for managing Kubernetes clusters.
+
+# Using Raw YAML Files
+
+Below are my notes and steps to get started with using Kubernetes (k8s) on AWS in Fargate, including getting the Application Load Balancer (ALB) working, dynamic DNS updates of Ingress routes, an the creation of certificates, and allocating them to the ingress services.
 
 Check out the [kustomize](./kustomize) directory for the same examples, using Kustomize (AKA `kubectl apply -k`)
 
