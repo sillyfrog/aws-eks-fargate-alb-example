@@ -55,7 +55,6 @@ metadata:
   labels:
     app: nginx-app
 spec:
-  type: LoadBalancer
   selector:
     app: nginx-app
   ports:

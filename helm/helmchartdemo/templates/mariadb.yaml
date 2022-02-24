@@ -47,7 +47,6 @@ metadata:
   labels:
     app: mariadb
 spec:
-  type: LoadBalancer
   selector:
     app: mariadb
   ports:

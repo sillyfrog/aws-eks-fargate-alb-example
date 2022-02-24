@@ -43,7 +43,6 @@ metadata:
   labels:
     app: whoami-demo
 spec:
-  type: LoadBalancer
   ports:
     - port: 80
   selector:
