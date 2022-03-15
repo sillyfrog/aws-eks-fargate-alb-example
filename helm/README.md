@@ -92,6 +92,8 @@ kubectl get serviceaccount aws-load-balancer-controller --namespace kube-system
 
 ### Install the Load Balancer Controller
 
+Documentation on the configuration and setup of the Elastic Load Balancer (ELB) using Ingress annotations is available here: https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.4/guide/ingress/annotations/ This is a useful resource for setting up health checks correctly.
+
 Get ready to install the Helm Chart by installing the AWS EKS repo:
 
 ```bash
@@ -392,7 +394,7 @@ After visiting a page hosted by nginx, you should start to see the logs show up 
 
 ## Configuring `kubectl` Context
 
-So `kubectl` works with the cluster, each user will need to add the cluster to their context with the following command (assuming they already have the `aws` CLI configure):
+So `kubectl` works with the cluster, each user will need to add the cluster to their context with the following command (assuming they already have the `aws` CLI configured):
 
 ```bash
 aws eks update-kubeconfig --region $YOUR_REGION_CODE --name $YOUR_CLUSTER_NAME
@@ -413,7 +415,7 @@ kubernetes   ClusterIP   10.100.0.1   <none>        443/TCP   23h
 
 ## Give Users Permissions
 
-There has to be a better way...
+There has to be a better way... Turns out there is not yet, more info [here](https://github.com/aws/containers-roadmap/issues/185)
 
 I found this page the most useful: https://aws.amazon.com/premiumsupport/knowledge-center/eks-api-server-unauthorized-error/
 
@@ -441,6 +443,16 @@ mapUsers: |
     username: sampleuser2
     groups:
       - system:masters
+```
+
+# Creating Users and Groups for Better AWS IAM Integration
+
+These steps show how to create IAM roles and groups, and have this apply to permissions in the AWS EKS Cluster. This is based on the document [here](https://dev.to/nextlinklabs/setting-up-kubernetes-user-access-using-aws-iam-1goh), but like most AWS/k8s documentation it's wrong and can't be used 1:1.
+
+This test is creating a `eks-demo-admin` and a `eks-demo-developer` role/group
+
+```bash
+aws iam create-role --role-name eks-admin-role --output text --query 'Role.Arn'
 ```
 
 # Secrets
@@ -625,6 +637,19 @@ MariaDB [database]>
 
 ```
 
+# Kubernetes Dashboard
+
+Kubernetes has a [standard dashboard](https://kubernetes.io/docs/tasks/access-application-cluster/web-ui-dashboard/) to log and view statics of the running cluster.
+
+To install and start the dashboard using the standard configuration, a fargate profile needs to be created (note the namespace used must match that required by the dashboard), and the dashboard deployed:
+
+```bash
+eksctl create fargateprofile --cluster $YOUR_CLUSTER_NAME --region $YOUR_REGION_CODE --name kubernetes-dashboard --namespace kubernetes-dashboard
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/v2.4.0/aio/deploy/recommended.yaml
+```
+
+For how to access the dashboard, see the [Kubernetes Docs](https://kubernetes.io/docs/tasks/access-application-cluster/web-ui-dashboard/).
+
 # Changing Clusters / "Contexts"
 
 If you are working on several clusters at once, you can change which one `kubectl` is using.
@@ -803,7 +828,7 @@ eksctl delete cluster --name $YOUR_CLUSTER_NAME
 
 This can take upwards of 20 minutes.
 
-Note, this does not appear to delete the ALB, which you can remove manually in the AWS console under `EC2 > Load Balancers`.
+Note, this does not appear to always delete the ALB, which you can remove manually in the AWS console under `EC2 > Load Balancers`.
 
 # Pod Size and Resource Allocation
 
